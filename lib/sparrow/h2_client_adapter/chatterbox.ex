@@ -18,14 +18,12 @@ defmodule Sparrow.H2ClientAdapter.Chatterbox do
   @impl true
   def open(domain, port, opts \\ []) do
     _ =
-      Logger.debug("Opening HTTP/2 connection",
-        what: :http_open,
-        domain: domain,
-        port: port,
-        opts: inspect(opts)
-      )
-
-    case :h2_client.start(:https, to_charlist(domain), port, opts) do
+      Logger.debug(fn ->
+        "action=open_conn, to=#{inspect(domain)}, port=#{port}, opts=#{
+          inspect(opts)
+        }"
+      end)
+    case :h2_client.start_link(:https, to_charlist(domain), port, opts) do
       :ignore ->
         _ =
           Logger.debug("Error while opening HTTP/2 connection",
@@ -40,13 +38,11 @@ defmodule Sparrow.H2ClientAdapter.Chatterbox do
 
       {:ok, connection_ref} ->
         _ =
-          Logger.debug("HTTP/2 connection opened",
-            what: :http_open,
-            status: :error,
-            domain: domain,
-            port: port,
-            connection: connection_ref
-          )
+          Logger.debug(fn ->
+            "action=open_conn, response=#{inspect({:ok, connection_ref})}"
+          end)
+
+        Process.unlink(connection_ref)
 
         {:ok, connection_ref}
 

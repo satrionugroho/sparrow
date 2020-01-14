@@ -208,4 +208,14 @@ defmodule H2ClientAdapter.ChatterboxTest do
   defp pid(string) when is_binary(string) do
     :erlang.list_to_pid(~c"<#{string}>")
   end
+
+  test "Worker stays alive after unlinking" do
+    with_mock :h2_client,
+      start_link: fn _, _, _, _ -> {:ok, spawn_link(fn -> Process.sleep(100000) end)} end do
+        {:ok, conn_ref} = H2Adapter.open("my.domain.at.domain", 1234)
+        Process.exit(conn_ref, :dunno)
+        eventually(assert false == Process.alive?(conn_ref))
+        assert Process.alive?(self())
+      end
+  end
 end
