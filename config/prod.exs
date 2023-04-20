@@ -1,6 +1,7 @@
 import Config
 
 config :sparrow,
+  pool_enabled: true,
   fcm: [
     # Authentication
     path_to_json: "priv/fcm/token/sparrow_token.json",

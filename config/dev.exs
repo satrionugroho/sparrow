@@ -1,6 +1,7 @@
 import Config
 
 config :sparrow,
+  pool_enabled: true,
   fcm: [
     [
       # TODO replace me with real data

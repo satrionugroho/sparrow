@@ -25,10 +25,10 @@ config :logger, level: :info
 # Configuration from the imported file will override the ones defined
 # here (which is why it is important to import them last).
 #
-config :sparrow, Sparrow.PoolsWarden, %{enabled: true}
-
 config :sparrow, Sparrow.H2ClientAdapter, %{
   adapter: Sparrow.H2ClientAdapter.Chatterbox
 }
+
+config :sparrow, pool_enabled: true
 
 import_config "#{Mix.env()}.exs"
