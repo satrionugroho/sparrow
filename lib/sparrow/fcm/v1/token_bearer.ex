@@ -6,8 +6,7 @@ defmodule Sparrow.FCM.V1.TokenBearer do
   require Logger
 
   @spec get_token(String.t()) :: String.t() | nil
-  def get_token(account) do
-    IO.inspect(account)
+  def get_token(_account) do
     {:ok, token_map} = Goth.fetch(__MODULE__)
 
     _ =
