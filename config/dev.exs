@@ -1,4 +1,4 @@
-use Mix.Config
+import Config
 
 config :sparrow,
   fcm: [
@@ -20,13 +20,13 @@ config :sparrow,
         token_id: :some_atom_id
       ]
     ],
-    tokens: [
-      [
-        # TODO replace me with real data
-        token_id: :some_atom_id,
-        key_id: "FAKE_KEY_ID",
-        team_id: "FAKE_TEAM_ID",
-        p8_file_path: "token.p8"
-      ]
-    ]
+    # tokens: [
+    #   [
+    #     # TODO replace me with real data
+    #     token_id: :some_atom_id,
+    #     key_id: "FAKE_KEY_ID",
+    #     team_id: "FAKE_TEAM_ID",
+    #     p8_file_path: "token.p8"
+    #   ]
+    # ]
   ]
