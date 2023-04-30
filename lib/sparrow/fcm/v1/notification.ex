@@ -5,10 +5,11 @@ defmodule Sparrow.FCM.V1.Notification do
   For details on the FCM.V1 notification payload structure see the following links:
     * https://firebase.google.com/docs/reference/fcm/rest/v1/projects.messages
   """
+  require Logger
 
   alias Sparrow.H2Worker.Request
 
-  @type target_type :: :token | :topic | :condition
+  @type target_type :: :token | :topic | :condition | :file
   @type android :: nil | Sparrow.FCM.V1.Android.t()
   @type webpush :: nil | Sparrow.FCM.V1.Webpush.t()
   @type apns :: nil | Sparrow.FCM.V1.APNS.t()
@@ -61,12 +62,67 @@ defmodule Sparrow.FCM.V1.Notification do
           String.t() | nil,
           map
         ) :: t
+  def new(target_type, target, title \\ nil, body \\ nil, data \\ %{})
+  def new(:token, targets, title, body, data) when is_list(targets) do
+    len = Kernel.length(targets)
+    
+    len
+    |> Kernel.<=(500)
+    |> case do
+      true -> %__MODULE__{
+        headers: [{"content-type", "multipart/mixed; boundary=\"subrequest_boundary\""}],
+        data: data,
+        title: title,
+        body: body,
+        android: nil,
+        webpush: nil,
+        apns: nil,
+        target: targets,
+        target_type: :token
+      }
+      _ ->
+        _ =
+          Logger.debug("Max length exceeded",
+            what: :target_limit,
+            message: "Given target is higher than expected. The target is #{inspect(len)}",
+            data: inspect(data)
+          )
+    end
+  end
+  def new(
+    :file,
+    target,
+    _title,
+    _body,
+    _data
+  ) do
+    case File.exists?(target) do
+      true -> %__MODULE__{
+        headers: [{"content-type", "multipart/mixed; boundary=\"subrequest_boundary\""}],
+        data: %{},
+        title: nil,
+        body: nil,
+        android: nil,
+        webpush: nil,
+        apns: nil,
+        target: target,
+        target_type: :file
+      }
+      _ ->
+        _ =
+          Logger.debug("File not exists",
+            what: :file_not_found,
+            message: "Given target is not found or missing. The current target is #{inspect(target)}",
+            data: inspect(target)
+          )
+    end
+  end
   def new(
         target_type,
         target,
-        title \\ nil,
-        body \\ nil,
-        data \\ %{}
+        title,
+        body,
+        data
       ) do
     %__MODULE__{
       headers: @headers,

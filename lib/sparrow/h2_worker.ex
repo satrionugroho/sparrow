@@ -401,6 +401,10 @@ defmodule Sparrow.H2Worker do
         send_response(from, {:error, return_code})
         {:noreply, state}
 
+      {:ok, :http_request} ->
+        {:reply, :ok, state}
+        # {:noreply, state}
+
       {:ok, stream_id} ->
         request_timeout_ref =
           schedule_message_after({:timeout_request, stream_id}, request.timeout)

@@ -75,9 +75,26 @@ defmodule Sparrow.FCM.V1 do
     timeout = Keyword.get(opts, :timeout, 5_000)
     strategy = Keyword.get(opts, :strategy, :random_worker)
     headers = notification.headers
-    json_body = notification |> make_body() |> Jason.encode!()
     path = path(notification.project_id)
-    request = Request.new(headers, json_body, path, timeout)
+    json_body = case notification.target do
+      [_head | _tail] = tokens ->
+        filename = "batch_response.txt"
+        content = Enum.map(tokens, fn t ->
+            notification
+            |> Map.put(:target, t)
+            |> make_body()
+            |> create_file_request(path)
+          end)
+          |> Enum.join("\n\n")
+          |> Kernel.<>("\n\n--subrequest_boundary--")
+        :ok = File.write(filename, content)
+        {:file, filename}
+      _ -> notification |> make_body() |> Jason.encode!()
+    end
+    request = case notification.target_type do
+      :file -> Request.new(headers, {:file, notification.target}, path, timeout)
+      _ -> Request.new(headers, json_body, path, timeout)
+    end
 
     _ =
       Logger.debug("Sending FCM notification",
@@ -299,5 +316,19 @@ defmodule Sparrow.FCM.V1 do
         # If there are no details, return the status
         error["status"]
     end
+  end
+
+  defp create_file_request(data, path) do
+    [
+      "--subrequest_boundary",
+      "Content-Type: application/http",
+      "Content-Transfer-Encoding: binary",
+      "",
+      "POST #{path}",
+      "Content-Type: application/json",
+      "Accept: application/json",
+      "\n",
+    ] |> Enum.join("\n")
+    |> Kernel.<>(Jason.encode!(data))
   end
 end
