@@ -43,21 +43,79 @@ defmodule Sparrow.FCM.V1 do
   @timed event_tags: [:push, :fcm]
   @spec push(
           atom,
-          Sparrow.FCM.V1.Notification.t(),
-          push_opts
-        ) :: sync_push_result | :ok
-  def push(h2_worker_pool, notification, opts) do
-    case Sparrow.FCM.V1.Notification.normalize(notification) do
-      {:error, reason} ->
-        {:error, reason}
+    Sparrow.FCM.V1.Notification.t(),
+    push_opts
+  ) :: sync_push_result | :ok
 
-      {:ok, notification} ->
-        do_push(h2_worker_pool, notification, opts)
+  def push(h2_worker_pool, notif, opts) do
+    case notif do
+      [%Sparrow.FCM.V1.Notification{} | _] = notifications ->
+        Enum.map(notifications, fn notification ->
+          case Sparrow.FCM.V1.Notification.normalize(notification) do
+            {:error, _reason} ->
+              nil
+            {:ok, notification} ->
+              notification
+          end
+        end)
+        |> Enum.reject(fn x -> is_nil(x) end)
+        |> then(&do_push(h2_worker_pool, &1, opts))
+
+      %Sparrow.FCM.V1.Notification{} = notification ->
+        case Sparrow.FCM.V1.Notification.normalize(notification) do
+          {:error, reason} ->
+            {:error, reason}
+
+          {:ok, notification} ->
+            do_push(h2_worker_pool, notification, opts)
+        end
+
     end
   end
 
   def push(h2_worker_pool, notification),
     do: push(h2_worker_pool, notification, [])
+
+  def do_push(h2_worker_pool, [%Sparrow.FCM.V1.Notification{} = notification | _] = notifs, opts) do
+    # Prep FCM's ProjectId
+    project_id = Sparrow.FCM.V1.ProjectIdBearer.get_project_id(h2_worker_pool)
+
+    notification =
+      Sparrow.FCM.V1.Notification.add_project_id(notification, project_id)
+
+    is_sync = Keyword.get(opts, :is_sync, true)
+    timeout = Keyword.get(opts, :timeout, 5_000)
+    strategy = Keyword.get(opts, :strategy, :random_worker)
+    headers = [{"content-type", "multipart/mixed; boundary=\"subrequest_boundary\""}]
+    path = path(notification.project_id)
+    filename = "batch_response.txt"
+    content = Enum.map(notifs, fn n ->
+            n
+            |> Map.put(:target, n.target)
+            |> make_body()
+            |> create_file_request(path)
+          end)
+          |> Enum.join("\n\n")
+          |> Kernel.<>("\n\n--subrequest_boundary--")
+    :ok = File.write(filename, content)
+    json_body = {:file, filename}
+    request = Request.new(headers, json_body, path, timeout)
+
+    _ =
+      Logger.debug("Sending Bulked FCM notification",
+        what: :push_fcm_notification,
+        request: request
+      )
+
+    h2_worker_pool
+    |> Sparrow.H2Worker.Pool.send_request(
+      request,
+      is_sync,
+      timeout,
+      strategy
+    )
+    |> process_response()
+  end
 
   @spec do_push(
           atom,

@@ -73,14 +73,19 @@ defmodule Sparrow.API do
     {:apns, notification.type}
   end
 
-  defp get_pool_type(_notification = %Sparrow.FCM.V1.Notification{}) do
-    :fcm
-  end
+  defp get_pool_type(_notification = %Sparrow.FCM.V1.Notification{}), do: :fcm
+
+  defp get_pool_type(_notification = [%Sparrow.FCM.V1.Notification{} | _]), do: :fcm
+
 
   @spec do_push(pool_name :: atom, notification, Keyword.t()) ::
           sync_push_result | :ok
   defp do_push(pool_name, notification = %Sparrow.APNS.Notification{}, opts) do
     Sparrow.APNS.push(pool_name, notification, opts)
+  end
+
+  defp do_push(pool_name, notification = [%Sparrow.FCM.V1.Notification{} | _] , opts) do
+    Sparrow.FCM.V1.push(pool_name, notification, opts)
   end
 
   defp do_push(pool_name, notification = %Sparrow.FCM.V1.Notification{}, opts) do
