@@ -84,7 +84,7 @@ defmodule Sparrow.FCM.V1 do
       Sparrow.FCM.V1.Notification.add_project_id(notification, project_id)
 
     is_sync = Keyword.get(opts, :is_sync, true)
-    timeout = Keyword.get(opts, :timeout, 5_000)
+    timeout = Keyword.get(opts, :timeout, 30_000)
     strategy = Keyword.get(opts, :strategy, :random_worker)
     headers = [{"content-type", "multipart/mixed; boundary=\"subrequest_boundary\""}]
     path = path(notification.project_id)
@@ -130,7 +130,7 @@ defmodule Sparrow.FCM.V1 do
       Sparrow.FCM.V1.Notification.add_project_id(notification, project_id)
 
     is_sync = Keyword.get(opts, :is_sync, true)
-    timeout = Keyword.get(opts, :timeout, 5_000)
+    timeout = Keyword.get(opts, :timeout, 30_000)
     strategy = Keyword.get(opts, :strategy, :random_worker)
     headers = notification.headers
     path = path(notification.project_id)
@@ -181,6 +181,12 @@ defmodule Sparrow.FCM.V1 do
       )
 
     :ok
+  end
+
+  def process_response({:ok, {_headers, body}}) when is_list(body) do
+    Enum.map(body, fn %{"headers" => headers, "body" => body} ->
+      process_response({:ok, {headers, body}})
+    end)
   end
 
   def process_response({:ok, {headers, body}}) do
