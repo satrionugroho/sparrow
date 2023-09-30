@@ -462,6 +462,11 @@ defmodule Sparrow.H2Worker do
         send_response(from, {:error, return_code})
         {:noreply, state}
 
+      {:ok, :file, %{status_code: 200, body: body} = response} ->
+        result = Sparrow.Parser.parse(body)
+        {:reply, {:ok, {response.headers, result}}, state}
+        # {:noreply, state}
+
       {:ok, stream_id} ->
         request_timeout_ref =
           schedule_message_after({:timeout_request, stream_id}, request.timeout)

@@ -85,7 +85,6 @@ defmodule Sparrow.FCM.V1 do
   defp extract_batch_notification(wpoll, notification, options) do
     case Sparrow.FCM.V1.Notification.normalize(notification) do
       {:error, reason} -> {:error, reason}
-
       {:ok, notification} -> do_push(wpoll, notification, options)
     end
   end
