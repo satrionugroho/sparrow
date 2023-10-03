@@ -360,12 +360,13 @@ defmodule Sparrow.FCM.V1 do
   end
 
   @spec get_reason_from_body(String.t()) :: String.t() | nil
-  defp get_reason_from_body(body) do
-    error =
-      body
-      |> Jason.decode!()
-      |> Map.get("error")
-
+  defp get_reason_from_body(body) when is_bitstring(body) do
+    body
+    |> Jason.decode!()
+    |> Map.get("error")
+    |> get_reason_from_body()
+  end
+  defp get_reason_from_body(error) when is_map(error) do
     fcm_error =
       Enum.find(error["details"] || [], fn detail ->
         Map.get(detail, "@type") ==
@@ -381,6 +382,7 @@ defmodule Sparrow.FCM.V1 do
         error["status"]
     end
   end
+  defp get_reason_from_body(_), do: "UNKNOWN_ERROR"
 
   defp create_file_request(data, path) do
     [
