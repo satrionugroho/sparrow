@@ -51,7 +51,7 @@ defmodule Sparrow.H2ClientAdapter do
   def post(_conn, domain, _path, headers, {:file, _filename} = body) do
     url = "https://#{domain}/batch"
     case HTTPoison.post(url, body, headers) do
-      {:ok, %HTTPoison.Response{status_code: 200} = _response} -> {:ok, :http_request}
+      {:ok, %HTTPoison.Response{status_code: 200} = response} -> {:ok, :file, response}
       {:error, err} -> {:error, err}
     end
   end

@@ -401,8 +401,9 @@ defmodule Sparrow.H2Worker do
         send_response(from, {:error, return_code})
         {:noreply, state}
 
-      {:ok, :http_request} ->
-        {:reply, :ok, state}
+      {:ok, :file, %{status_code: 200, body: body} = response} ->
+        result = Sparrow.Parser.parse(body)
+        {:reply, {:ok, {response.headers, result}}, state}
         # {:noreply, state}
 
       {:ok, stream_id} ->
