@@ -363,24 +363,18 @@ defmodule Sparrow.FCM.V1 do
   defp get_reason_from_body(body) when is_bitstring(body) do
     body
     |> Jason.decode!()
-    |> Map.get("error")
     |> get_reason_from_body()
   end
-  defp get_reason_from_body(error) when is_map(error) do
-    fcm_error =
-      Enum.find(error["details"] || [], fn detail ->
-        Map.get(detail, "@type") ==
-          "type.googleapis.com/google.firebase.fcm.v1.FcmError"
-      end)
+  defp get_reason_from_body(%{"error" =>%{"details" => [%{"@type" => "type.googleapis.com/google.firebase.fcm.v1.FcmError", "errorCode" => ec} | _]}}) do
+    ec
+  end
 
-    case fcm_error do
-      %{"errorCode" => ec} ->
-        ec
+  defp get_reason_from_body(%{"error" => %{"details" => [_ | tl]}}) do
+    get_reason_from_body(%{"error" => %{"details" => tl}})
+  end
 
-      _ ->
-        # If there are no details, return the status
-        error["status"]
-    end
+  defp get_reason_from_body(%{"error" =>%{"status" => status}}) when is_binary(status) do
+    status
   end
   defp get_reason_from_body(_), do: "UNKNOWN_ERROR"
 
