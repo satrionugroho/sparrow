@@ -413,6 +413,24 @@ defmodule Sparrow.H2Worker do
     end
   end
 
+  defp get_header_value(config, request) do
+    case Config.get_authentication_type(config) do
+      :certificate_based -> request.headers
+
+      :token_based ->
+        token_header = config.authentication.token_getter.()
+
+        _ =
+          Logger.debug("Auth token added to request headers",
+            what: :add_token_to_headers,
+            result: :success,
+            token_header: inspect(token_header)
+          )
+
+        [token_header | request.headers]
+    end
+  end
+
   @doc !"""
        Scheduales message to genserver after time miliseconds.
        When time is nil scheduling is ignored.
