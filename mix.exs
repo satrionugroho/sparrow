@@ -71,6 +71,6 @@ defmodule Sparrow.MixProject do
   defp elixirc_paths(_), do: ["lib"]
 
   defp elixirc_options() do
-    [warnings_as_errors: false]
+    [warnings_as_errors: true]
   end
 end

@@ -229,7 +229,7 @@ defmodule Sparrow.H2Worker do
 
       _ ->
         _ =
-          Logger.warn("Unknown connection process down",
+          Logger.warning("Unknown connection process down",
             what: :h2_unknown_down_message,
             pid: inspect(pid),
             reason: inspect(reason)
@@ -251,7 +251,7 @@ defmodule Sparrow.H2Worker do
   end
 
   def handle_info(unknown, state) do
-    _ = Logger.warn("Unknown info message", what: :unknown_info, value: unknown)
+    _ = Logger.warning("Unknown info message", what: :unknown_info, value: unknown)
     {:noreply, state}
   end
 
@@ -366,7 +366,7 @@ defmodule Sparrow.H2Worker do
     case post_result do
       {:error, return_code} ->
         _ =
-          Logger.warn("Failed to send H2 request",
+          Logger.warning("Failed to send H2 request",
             what: :h2_request_failed,
             request: request,
             status: :error,
@@ -490,7 +490,7 @@ defmodule Sparrow.H2Worker do
     case reason do
       {:request_timeout, stream_id} ->
         _ =
-          Logger.warn("Sending response to caller",
+          Logger.warning("Sending response to caller",
             what: :h2_send_reponse,
             item: :request_response,
             stream_id: "#{stream_id}",
@@ -567,7 +567,7 @@ defmodule Sparrow.H2Worker do
         )
 
         _ =
-          Logger.warn("Failed to start H2 connection",
+          Logger.warning("Failed to start H2 connection",
             what: :h2_connection_start,
             status: :error,
             domain: config.domain,
@@ -622,7 +622,7 @@ defmodule Sparrow.H2Worker do
 
       {:error, reason} ->
         _ =
-          Logger.warn("Failed to start H2 connection",
+          Logger.warning("Failed to start H2 connection",
             what: :h2_starting_connection,
             status: :error,
             reason: inspect(reason),
