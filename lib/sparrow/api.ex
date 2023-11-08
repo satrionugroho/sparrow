@@ -84,11 +84,7 @@ defmodule Sparrow.API do
     Sparrow.APNS.push(pool_name, notification, opts)
   end
 
-  defp do_push(pool_name, notification = [%Sparrow.FCM.V1.Notification{} | _] , opts) do
-    Sparrow.FCM.V1.push(pool_name, notification, opts)
-  end
-
-  defp do_push(pool_name, notification = %Sparrow.FCM.V1.Notification{}, opts) do
+  defp do_push(pool_name, notification, opts) do
     Sparrow.FCM.V1.push(pool_name, notification, opts)
   end
 end

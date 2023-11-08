@@ -46,75 +46,34 @@ defmodule Sparrow.FCM.V1 do
     Sparrow.FCM.V1.Notification.t(),
     push_opts
   ) :: sync_push_result | :ok
-
-  def push(h2_worker_pool, notif, opts) do
-    case notif do
-      [%Sparrow.FCM.V1.Notification{} | _] = notifications ->
-        Enum.map(notifications, fn notification ->
-          case Sparrow.FCM.V1.Notification.normalize(notification) do
-            {:error, _reason} ->
-              nil
-            {:ok, notification} ->
-              notification
-          end
-        end)
-        |> Enum.reject(fn x -> is_nil(x) end)
-        |> then(&do_push(h2_worker_pool, &1, opts))
-
-      %Sparrow.FCM.V1.Notification{} = notification ->
-        case Sparrow.FCM.V1.Notification.normalize(notification) do
-          {:error, reason} ->
-            {:error, reason}
-
-          {:ok, notification} ->
-            do_push(h2_worker_pool, notification, opts)
-        end
-
-    end
+  def push(h2_worker_pool, maybe_batch_notification, opts) do
+    extract_batch_notification(h2_worker_pool, maybe_batch_notification, opts)
   end
 
   def push(h2_worker_pool, notification),
     do: push(h2_worker_pool, notification, [])
 
-  def do_push(h2_worker_pool, [%Sparrow.FCM.V1.Notification{} = notification | _] = notifs, opts) do
-    # Prep FCM's ProjectId
-    project_id = Sparrow.FCM.V1.ProjectIdBearer.get_project_id(h2_worker_pool)
+  defp extract_batch_notification(_wpoll, [], _options), do: :ok
+  defp extract_batch_notification(wpoll, [head | rest] = _notifications, opts) do
+    options = Keyword.put_new(opts, :is_sync, false)
+    case extract_batch_notification(wpoll, head, options) do
+      {:error, reason} ->
+        _ = Logger.info("Error while sending notification",
+          what: :result_push_notif,
+          action: :next_notification_if_any,
+          reason: reason,
+          request: head)
+        extract_batch_notification(wpoll, rest, options)
+      _ -> extract_batch_notification(wpoll, rest, options)
+    end
+  end
 
-    notification =
-      Sparrow.FCM.V1.Notification.add_project_id(notification, project_id)
+  defp extract_batch_notification(wpoll, notification, options) do
+    case Sparrow.FCM.V1.Notification.normalize(notification) do
+      {:error, reason} -> {:error, reason}
 
-    is_sync = Keyword.get(opts, :is_sync, true)
-    timeout = Keyword.get(opts, :timeout, 30_000)
-    strategy = Keyword.get(opts, :strategy, :random_worker)
-    headers = [{"content-type", "multipart/mixed; boundary=\"subrequest_boundary\""}]
-    path = path(notification.project_id)
-    filename = "batch_response.txt"
-    content = Enum.map(notifs, fn n ->
-            n
-            |> Map.put(:target, n.target)
-            |> make_body()
-            |> create_file_request(path)
-          end)
-          |> Enum.join("\n\n")
-          |> Kernel.<>("\n\n--subrequest_boundary--")
-    :ok = File.write(filename, content)
-    json_body = {:file, filename}
-    request = Request.new(headers, json_body, path, timeout)
-
-    _ =
-      Logger.debug("Sending Bulked FCM notification",
-        what: :push_fcm_notification,
-        request: request
-      )
-
-    h2_worker_pool
-    |> Sparrow.H2Worker.Pool.send_request(
-      request,
-      is_sync,
-      timeout,
-      strategy
-    )
-    |> process_response()
+      {:ok, notification} -> do_push(wpoll, notification, options)
+    end
   end
 
   @spec do_push(
@@ -133,26 +92,9 @@ defmodule Sparrow.FCM.V1 do
     timeout = Keyword.get(opts, :timeout, 30_000)
     strategy = Keyword.get(opts, :strategy, :random_worker)
     headers = notification.headers
+    json_body = notification |> make_body() |> Jason.encode!()
     path = path(notification.project_id)
-    json_body = case notification.target do
-      [_head | _tail] = tokens ->
-        filename = "batch_response.txt"
-        content = Enum.map(tokens, fn t ->
-            notification
-            |> Map.put(:target, t)
-            |> make_body()
-            |> create_file_request(path)
-          end)
-          |> Enum.join("\n\n")
-          |> Kernel.<>("\n\n--subrequest_boundary--")
-        :ok = File.write(filename, content)
-        {:file, filename}
-      _ -> notification |> make_body() |> Jason.encode!()
-    end
-    request = case notification.target_type do
-      :file -> Request.new(headers, {:file, notification.target}, path, timeout)
-      _ -> Request.new(headers, json_body, path, timeout)
-    end
+    request = Request.new(headers, json_body, path, timeout)
 
     _ =
       Logger.debug("Sending FCM notification",
@@ -377,18 +319,4 @@ defmodule Sparrow.FCM.V1 do
     status
   end
   defp get_reason_from_body(_), do: "UNKNOWN_ERROR"
-
-  defp create_file_request(data, path) do
-    [
-      "--subrequest_boundary",
-      "Content-Type: application/http",
-      "Content-Transfer-Encoding: binary",
-      "",
-      "POST #{path}",
-      "Content-Type: application/json",
-      "Accept: application/json",
-      "\n",
-    ] |> Enum.join("\n")
-    |> Kernel.<>(Jason.encode!(data))
-  end
 end

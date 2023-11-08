@@ -352,23 +352,7 @@ defmodule Sparrow.H2Worker do
   @timed event_tags: [:h2_worker, :handle]
   @spec handle(request, from | :noreply, state) :: {:noreply, state}
   defp handle(request, from, state) do
-    headers =
-      case Config.get_authentication_type(state.config) do
-        :certificate_based ->
-          request.headers
-
-        :token_based ->
-          token_header = state.config.authentication.token_getter.()
-
-          _ =
-            Logger.debug("Auth token added to request headers",
-              what: :add_token_to_headers,
-              result: :success,
-              token_header: inspect(token_header)
-            )
-
-          [token_header | request.headers]
-      end
+    headers = get_header_value(state.config, request)
 
     post_result =
       H2ClientAdapter.post(
@@ -400,11 +384,6 @@ defmodule Sparrow.H2Worker do
 
         send_response(from, {:error, return_code})
         {:noreply, state}
-
-      {:ok, :file, %{status_code: 200, body: body} = response} ->
-        result = Sparrow.Parser.parse(body)
-        {:reply, {:ok, {response.headers, result}}, state}
-        # {:noreply, state}
 
       {:ok, stream_id} ->
         request_timeout_ref =
