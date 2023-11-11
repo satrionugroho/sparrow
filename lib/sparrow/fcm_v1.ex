@@ -67,6 +67,20 @@ defmodule Sparrow.FCM.V1 do
       _ -> extract_batch_notification(wpoll, rest, options)
     end
   end
+  defp extract_batch_notification(_wpoll, %{target: []}, _options), do: :ok
+  defp extract_batch_notification(wpoll, %{target: [token | rest]} = notification, opts) do
+    options = Keyword.put_new(opts, :is_sync, false)
+    case extract_batch_notification(wpoll, %{notification | target: token}, options) do
+      {:error, reason} ->
+        _ = Logger.info("Error while sending notification",
+          what: :result_push_notif,
+          action: :next_notification_if_any,
+          reason: reason,
+          request: notification)
+        extract_batch_notification(wpoll, %{notification | target: rest}, options)
+      _ -> extract_batch_notification(wpoll, %{notification | target: rest}, options)
+    end
+  end
 
   defp extract_batch_notification(wpoll, notification, options) do
     case Sparrow.FCM.V1.Notification.normalize(notification) do
