@@ -333,4 +333,75 @@ defmodule Sparrow.FCM.V1 do
     status
   end
   defp get_reason_from_body(_), do: "UNKNOWN_ERROR"
+
+  def subscription(h2_worker_pool, subscription, opts) do
+    is_sync = Keyword.get(opts, :is_sync, true)
+    timeout = Keyword.get(opts, :timeout, 30_000)
+    strategy = Keyword.get(opts, :strategy, :random_worker)
+    json_body = Sparrow.FCM.V1.Subscription.body(subscription)
+    path = Sparrow.FCM.V1.Subscription.path(subscription)
+    headers = [
+      {"content-type", "application/json"}
+    ]
+    request = Request.new(headers, json_body, path, timeout)
+
+    _ =
+      Logger.debug("Sending FCM subscription",
+        what: :push_fcm_notification,
+        request: request
+      )
+
+    h2_worker_pool
+    |> Sparrow.H2Worker.Pool.send_request(
+      request,
+      is_sync,
+      timeout,
+      strategy
+    )
+    |> process_subscription_response()
+  end
+
+  defp process_subscription_response({:ok, {headers, body}}) do
+    if {":status", "200"} in headers do
+      _ =
+        Logger.debug("Processing FCM subscription response",
+          what: :fcm_subscription_response,
+          result: :success,
+          status: "200"
+        )
+      _ =
+        Logger.info("Subscription response",
+          what: :fcm_subscription_response,
+          result: :success,
+          status: "200",
+          data: inspect body
+        )
+
+      :ok
+    else
+      status = get_status_from_headers(headers)
+
+      _ =
+        Logger.debug("Processing FCM subscription response",
+          what: :fcm_push_response,
+          result: :error,
+          status: inspect(status)
+        )
+
+      reason =
+        body
+        |> get_reason_from_body()
+        |> String.to_atom()
+
+      _ =
+        Logger.warning("Processing FCM subscription response",
+          what: :fcm_push_response,
+          result: :error,
+          response_body: inspect(body)
+        )
+
+      {:error, reason}
+    end
+  end
+  defp process_subscription_response({:error, _reason} = err), do: err
 end

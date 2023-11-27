@@ -17,6 +17,7 @@ defmodule Sparrow.FCM.V1.Supervisor do
     children = [
       Sparrow.FCM.V1.ProjectIdBearer,
       {Sparrow.FCM.V1.Pool.Supervisor, raw_fcm_config},
+      {Sparrow.FCM.V1.Pool.Subscription, raw_fcm_config},
       {Goth, name: Sparrow.FCM.V1.TokenBearer, source: source}
     ]
 

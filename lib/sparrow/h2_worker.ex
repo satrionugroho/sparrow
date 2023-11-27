@@ -317,7 +317,7 @@ defmodule Sparrow.H2Worker do
         request: request
       )
 
-    case start_conn(state.config, state.config.reconnect_attempts) do
+    case start_conn(state.config, state.config.reconnect_attempts, state.config.pool_type) do
       {:error, reason} ->
         _ =
           Logger.error("Restarting H2 connection failed",
@@ -351,6 +351,54 @@ defmodule Sparrow.H2Worker do
        """
   @timed event_tags: [:h2_worker, :handle]
   @spec handle(request, from | :noreply, state) :: {:noreply, state}
+  defp handle(request, from, %{connection_ref: :pass_through} = state) do
+    headers = [{"access_token_auth", true} | get_header_value(state.config, request)]
+    body = case request.body do
+      data when is_map(data) -> Jason.encode!(data)
+      data -> data
+    end
+    url = "https://#{state.config.domain}" <> request.path
+    HTTPoison.post(url, body, headers, recv_timeout: 10_000)
+    |> case do
+      {:ok, %HTTPoison.Response{status_code: 200, body: body, headers: headers}} ->
+        res = handle_subscription_result(body)
+        send_response(from, {:ok, {[{":status", "200"} | headers], res}})
+
+        new_state =
+          State.new(
+            nil,
+            state.config
+          )
+
+        :telemetry.execute(
+          [:sparrow, :h2_worker, :request_success],
+          %{},
+          extract_worker_info(state)
+        )
+
+        {:noreply, new_state}
+      {:error, err} -> 
+        _ =
+          Logger.warning("Failed to send H2 request",
+            what: :h2_request_failed,
+            request: request,
+            status: :error,
+            reason: "#{err.status_code}"
+          )
+
+        :telemetry.execute(
+          [:sparrow, :h2_worker, :request_error],
+          %{},
+          state
+          |> extract_worker_info()
+          |> Map.put(:from, from)
+          |> Map.put(:return_code, err.status_code)
+        )
+
+        send_response(from, {:error, err.status_code})
+        {:noreply, state}
+    end
+  end
   defp handle(request, from, state) do
     headers = get_header_value(state.config, request)
 
@@ -411,6 +459,26 @@ defmodule Sparrow.H2Worker do
 
         {:noreply, new_state}
     end
+  end
+
+  defp handle_subscription_result(body) do
+    state = %{success: 0, failure: 0, errors: []}
+    Jason.decode(body)
+    |> case do
+      {:ok, data} -> Map.get(data, "results")
+      _ -> []
+    end
+    |> Enum.reduce(state, fn v, %{success: success, failure: failure, errors: errors} = acc ->
+      case Map.values(v) do
+        [] -> Map.put(acc, :success, success + 1)
+        _ -> 
+          err = Map.get(v, "error")
+          Map.merge(acc, %{
+            failure: failure + 1,
+            errors: [ err | errors]
+          })
+      end
+    end)
   end
 
   defp get_header_value(config, request) do
@@ -587,7 +655,8 @@ defmodule Sparrow.H2Worker do
     end
   end
 
-  defp start_conn(config, 0) do
+  defp start_conn(config, 0, :fcm_subscription), do: {:ok, State.new(:pass_through, config)}
+  defp start_conn(config, 0, _type) do
     case start_conn(config) do
       {:ok, state} ->
         {:ok, state}
@@ -606,7 +675,7 @@ defmodule Sparrow.H2Worker do
     end
   end
 
-  defp start_conn(config, restarts_left) when restarts_left > 0 do
+  defp start_conn(config, restarts_left, type) when restarts_left > 0 do
     _ =
       Logger.debug("Starting H2 connection",
         what: :h2_starting_connection,
@@ -632,7 +701,7 @@ defmodule Sparrow.H2Worker do
             restarts_left: restarts_left
           )
 
-        start_conn(config, restarts_left - 1)
+        start_conn(config, restarts_left - 1, type)
     end
   end
 

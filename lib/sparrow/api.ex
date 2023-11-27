@@ -6,7 +6,7 @@ defmodule Sparrow.API do
   require Logger
 
   @type notification ::
-          Sparrow.FCM.V1.Notification.t() | Sparrow.APNS.Notification.t()
+          Sparrow.FCM.V1.Notification.t() | Sparrow.APNS.Notification.t() | Sparrow.FCM.V1.Subscription.t()
   @type sync_push_result ::
           Sparrow.FCM.V1.sync_push_result() | Sparrow.APNS.sync_push_result()
   @type pool_type :: Sparrow.PoolsWarden.pool_type()
@@ -72,9 +72,8 @@ defmodule Sparrow.API do
   defp get_pool_type(notification = %Sparrow.APNS.Notification{}) do
     {:apns, notification.type}
   end
-
+  defp get_pool_type(_subscription = %Sparrow.FCM.V1.Subscription{}), do: :fcm_subscription
   defp get_pool_type(_notification = %Sparrow.FCM.V1.Notification{}), do: :fcm
-
   defp get_pool_type(_notification = [%Sparrow.FCM.V1.Notification{} | _]), do: :fcm
 
 
@@ -82,6 +81,10 @@ defmodule Sparrow.API do
           sync_push_result | :ok
   defp do_push(pool_name, notification = %Sparrow.APNS.Notification{}, opts) do
     Sparrow.APNS.push(pool_name, notification, opts)
+  end
+
+  defp do_push(pool_name, subs = %Sparrow.FCM.V1.Subscription{}, opts) do
+    Sparrow.FCM.V1.subscription(pool_name, subs, opts)
   end
 
   defp do_push(pool_name, notification, opts) do
