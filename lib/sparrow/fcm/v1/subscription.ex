@@ -18,6 +18,8 @@ defmodule Sparrow.FCM.V1.Subscription do
     errors: [String.t()]
   }
 
+  @default_endpoint "https://iid.googleapis.com/iid"
+
   defstruct [:tokens, :topic, :operation]
 
   @doc """
@@ -77,5 +79,43 @@ defmodule Sparrow.FCM.V1.Subscription do
       "to" => subs.topic,
       "registration_tokens" => subs.tokens
     }
+  end
+
+  def list(token) do
+    case Sparrow.PoolsWarden.choose_pool(:fcm) do
+      nil ->
+        _ =
+          :logger.error(%{
+            message: "Unable to select connection pool",
+          },
+            what: :connection_pool,
+            reason: :unable_to_find,
+            pool_type: inspect(:fcm),
+            tags: [:list, :fcm]
+          )
+
+        {:error, :configuration_error}
+      pool -> do_get_list(pool, token)
+    end
+  end
+
+  defp do_get_list(wpool, token) do
+    project = Sparrow.FCM.V1.ProjectIdBearer.get_project_id(wpool)
+    bearer  = Sparrow.FCM.V1.TokenBearer.get_token(project)
+    url     = "#{@default_endpoint}/info/#{token}?details=true"
+    headers = [
+      {"access_token_auth", true},
+      {"authorization", "Bearer #{bearer}"},
+      {"content-type", "application/json"},
+    ]
+
+    HTTPoison.get(url, headers)
+    |> case do
+      {:ok, %HTTPoison.Response{status_code: 200} = response} ->
+        resp   = Jason.decode!(response.body)
+        topics = Map.get(resp, "rel", %{}) |> Map.get("topics", [])
+        {:ok, %{topics: topics, scope: Map.get(resp, "scope")}}
+      {:error, _err} = error -> error
+    end
   end
 end
