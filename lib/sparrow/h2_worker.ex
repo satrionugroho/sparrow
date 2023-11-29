@@ -281,6 +281,29 @@ defmodule Sparrow.H2Worker do
 
   @spec handle_call({:send_request, request}, from, state) ::
           {:noreply, state} | {:stop, reason, state}
+  def handle_call({:send_request, {:subscription, request}}, from, state) do
+    _ =
+      Logger.debug("Attempt to send HTTP request",
+        what: :h2_request_attempt,
+        type: :call,
+        request: request,
+        from: inspect(from),
+        state: state
+      )
+    config =
+      Map.get(state, :config)
+      |> Map.put(:pool_type, :fcm_subscription)
+      |> Map.put(:domain, "iid.googleapis.com")
+      |> struct()
+
+    new_state =
+      Map.put(state, :config, config)
+      |> Map.put(:connection_ref, nil)
+      |> struct()
+
+    try_handle(request, from, new_state)
+  end
+
   def handle_call({:send_request, request}, from, state) do
     _ =
       Logger.debug("Attempt to send HTTP request",
@@ -358,11 +381,12 @@ defmodule Sparrow.H2Worker do
       data -> data
     end
     url = "https://#{state.config.domain}" <> request.path
-    HTTPoison.post(url, body, headers, recv_timeout: 10_000)
+
+    HTTPoison.post(url, body, headers)
     |> case do
-      {:ok, %HTTPoison.Response{status_code: 200, body: body, headers: headers}} ->
+      {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
         res = handle_subscription_result(body)
-        send_response(from, {:ok, {[{":status", "200"} | headers], res}})
+        send_response(from, {:ok, {[{":status", "200"} | headers], Jason.encode!(res)}})
 
         new_state =
           State.new(
@@ -372,7 +396,7 @@ defmodule Sparrow.H2Worker do
 
         :telemetry.execute(
           [:sparrow, :h2_worker, :request_success],
-          %{},
+          %{data: res, worker: from},
           extract_worker_info(state)
         )
 

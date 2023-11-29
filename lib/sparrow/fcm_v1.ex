@@ -353,7 +353,7 @@ defmodule Sparrow.FCM.V1 do
 
     h2_worker_pool
     |> Sparrow.H2Worker.Pool.send_request(
-      request,
+      {:subscription, request},
       is_sync,
       timeout,
       strategy

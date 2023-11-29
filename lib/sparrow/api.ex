@@ -72,7 +72,7 @@ defmodule Sparrow.API do
   defp get_pool_type(notification = %Sparrow.APNS.Notification{}) do
     {:apns, notification.type}
   end
-  defp get_pool_type(_subscription = %Sparrow.FCM.V1.Subscription{}), do: :fcm_subscription
+  defp get_pool_type(_subscription = %Sparrow.FCM.V1.Subscription{}), do: :fcm
   defp get_pool_type(_notification = %Sparrow.FCM.V1.Notification{}), do: :fcm
   defp get_pool_type(_notification = [%Sparrow.FCM.V1.Notification{} | _]), do: :fcm
 
