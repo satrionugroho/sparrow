@@ -9,8 +9,8 @@ Currently it provides support for the following APIs:
 * [APNS](https://developer.apple.com/library/archive/documentation/NetworkingInternet/Conceptual/RemoteNotificationsPG/APNSOverview.html)
 
 ## Requirements
-* Elixir 1.15.7 or higher
-* Erlang/OTP 25 with [erts-13.2.2.4] or higher
+* Elixir 1.13 or higher
+* Erlang OTP 24 or higher
 
 # Build sparrow config
 This section describes how to write a config file for Sparrow.

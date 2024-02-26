@@ -1,5 +1,5 @@
 # This file is responsible for configuring your application
-# and its dependencies with the aid of the Mix.Config module.
+# and its dependencies with the aid of the Config module.
 import Config
 # This configuration is loaded before any dependency and is restricted
 # to this project. If another project depends on this project, this
@@ -19,16 +19,18 @@ import Config
 #
 config :logger, level: :info
 
+config :logger, :default_formatter, metadata: :all
+
 # It is also possible to import configuration files, relative to this
 # directory. For example, you can emulate configuration per environment
 # by uncommenting the line below and defining dev.exs, test.exs and such.
 # Configuration from the imported file will override the ones defined
 # here (which is why it is important to import them last).
 #
+config :sparrow, Sparrow.PoolsWarden, %{enabled: true}
+
 config :sparrow, Sparrow.H2ClientAdapter, %{
   adapter: Sparrow.H2ClientAdapter.Chatterbox
 }
-
-config :sparrow, pool_enabled: true
 
 import_config "#{Mix.env()}.exs"
