@@ -7,7 +7,11 @@ defmodule Sparrow.FCM.V1.TokenBearer do
 
   @spec get_token(String.t()) :: String.t() | nil
   def get_token(maybe_account) do
-    account = Sparrow.FCM.V1.Config.get_config(maybe_account)
+    account = case Sparrow.FCM.V1.Config.get_config(maybe_account) do
+      nil -> maybe_account
+      a -> a
+    end
+
     {:ok, token_map} = Goth.fetch(account)
 
     _ =
