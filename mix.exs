@@ -26,7 +26,7 @@ defmodule Sparrow.MixProject do
     [
       {:dialyxir, "~> 1.0", runtime: false, only: [:dev, :test]},
       {:credo, "~> 1.6", runtime: false, only: [:dev, :test]},
-      {:chatterbox, github: "joedevivo/chatterbox", ref: "1f4ce4f"},
+      {:chatterbox, github: "joedevivo/chatterbox", ref: "c0506c7"},
       {:certifi, "~> 2.9"},
       {:excoveralls, "~> 0.14", runtime: false, only: :test},
       {:quixir, "~> 0.9", only: :test},
@@ -41,7 +41,7 @@ defmodule Sparrow.MixProject do
       {:lager, "~> 3.9", override: true},
       {:logger_lager_backend, "~> 0.2"},
       {:plug, "~> 1.13", only: :test},
-      {:goth, "~> 1.4.0", runtime: false},
+      {:goth, "~> 1.4.0"},
       {:httpoison, "~> 1.8"},
       {:worker_pool, "== 4.0.1"},
       {:assert_eventually, "~> 1.0", only: [:test]},

@@ -301,7 +301,7 @@ defmodule Sparrow.H2Worker do
       |> Map.put(:connection_ref, nil)
       |> struct()
 
-    try_handle(request, from, new_state)
+    try_subscribe(request, from, new_state)
   end
 
   def handle_call({:send_request, request}, from, state) do
@@ -329,6 +329,56 @@ defmodule Sparrow.H2Worker do
       )
 
     try_handle(request, :noreply, state)
+  end
+
+  defp try_subscribe(request, from, state) do
+    headers = [{"access_token_auth", true} | get_header_value(state.config, request)]
+    body = case request.body do
+      data when is_map(data) -> Jason.encode!(data)
+      data -> data
+    end
+    url = "https://#{state.config.domain}" <> request.path
+
+    HTTPoison.post(url, body, headers)
+    |> case do
+      {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
+        res = handle_subscription_result(body)
+        send_response(from, {:ok, {[{":status", "200"} | headers], Jason.encode!(res)}})
+
+        new_state =
+          State.new(
+            nil,
+            state.config
+          )
+
+        :telemetry.execute(
+          [:sparrow, :h2_worker, :request_success],
+          %{data: res, worker: from},
+          extract_worker_info(state)
+        )
+
+        {:noreply, new_state}
+      {:error, err} -> 
+        _ =
+          Logger.warning("Failed to send H2 request",
+            what: :h2_request_failed,
+            request: request,
+            status: :error,
+            reason: "#{inspect err.reason}"
+          )
+
+        :telemetry.execute(
+          [:sparrow, :h2_worker, :request_error],
+          %{},
+          state
+          |> extract_worker_info()
+          |> Map.put(:from, from)
+          |> Map.put(:return_code, 402)
+        )
+
+        send_response(from, {:error, {:request_timeout, 402}})
+        {:noreply, state}
+    end
   end
 
   @spec try_handle(request, from | :noreply, state) ::
@@ -374,55 +424,6 @@ defmodule Sparrow.H2Worker do
        """
   @timed event_tags: [:h2_worker, :handle]
   @spec handle(request, from | :noreply, state) :: {:noreply, state}
-  defp handle(request, from, %{connection_ref: :pass_through} = state) do
-    headers = [{"access_token_auth", true} | get_header_value(state.config, request)]
-    body = case request.body do
-      data when is_map(data) -> Jason.encode!(data)
-      data -> data
-    end
-    url = "https://#{state.config.domain}" <> request.path
-
-    HTTPoison.post(url, body, headers)
-    |> case do
-      {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
-        res = handle_subscription_result(body)
-        send_response(from, {:ok, {[{":status", "200"} | headers], Jason.encode!(res)}})
-
-        new_state =
-          State.new(
-            nil,
-            state.config
-          )
-
-        :telemetry.execute(
-          [:sparrow, :h2_worker, :request_success],
-          %{data: res, worker: from},
-          extract_worker_info(state)
-        )
-
-        {:noreply, new_state}
-      {:error, err} -> 
-        _ =
-          Logger.warning("Failed to send H2 request",
-            what: :h2_request_failed,
-            request: request,
-            status: :error,
-            reason: "#{err.status_code}"
-          )
-
-        :telemetry.execute(
-          [:sparrow, :h2_worker, :request_error],
-          %{},
-          state
-          |> extract_worker_info()
-          |> Map.put(:from, from)
-          |> Map.put(:return_code, err.status_code)
-        )
-
-        send_response(from, {:error, err.status_code})
-        {:noreply, state}
-    end
-  end
   defp handle(request, from, state) do
     headers = get_header_value(state.config, request)
 

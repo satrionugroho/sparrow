@@ -402,5 +402,6 @@ defmodule Sparrow.FCM.V1 do
       {:error, reason}
     end
   end
+  defp process_subscription_response(:ok), do: :ok
   defp process_subscription_response({:error, _reason} = err), do: err
 end
